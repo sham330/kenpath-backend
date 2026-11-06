@@ -1,31 +1,40 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const authRoutes = require('./routes/auth.routes');
 
 const app = express();
-const prisma = new PrismaClient();
 
-app.use(express.json());
+// Security headers
+app.use(helmet());
 
-app.get('/users', async (req, res) => {
-  const users = await prisma.user.findMany();
-  res.json(users);
-});
+// Body parser with size limit
+app.use(express.json({ limit: '10kb' }));
 
-app.post('/users', async (req, res) => {
-  const { email, name } = req.body;
-  const user = await prisma.user.create({ data: { email, name } });
-  res.status(201).json(user);
-});
+// Rate limiting
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  message: { error: 'Too many requests, please try again later' },
+}));
 
-app.get('/users/:id', async (req, res) => {
-  const user = await prisma.user.findUnique({ where: { id: Number(req.params.id) } });
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json(user);
-});
+// Stricter limiter for auth routes
+app.use('/api/auth', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many auth attempts, please try again later' },
+}));
 
-app.delete('/users/:id', async (req, res) => {
-  await prisma.user.delete({ where: { id: Number(req.params.id) } });
-  res.status(204).send();
+// Routes
+app.use('/api/auth', authRoutes);
+
+// 404
+app.use((req, res) => res.status(404).json({ error: 'Not found' }));
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 3000;
