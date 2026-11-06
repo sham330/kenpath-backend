@@ -2,6 +2,7 @@ const express = require('express');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/auth.routes');
+const readingsRoutes = require('./routes/readings.routes');
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.use('/api/auth', rateLimit({
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/readings', readingsRoutes);
 
 // 404
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
