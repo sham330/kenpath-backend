@@ -1,5 +1,6 @@
 const express = require('express');
 const helmet = require('helmet');
+const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/auth.routes');
 const readingsRoutes = require('./routes/readings.routes');
@@ -8,6 +9,9 @@ const app = express();
 
 // Security headers
 app.use(helmet());
+
+// CORS
+app.use(cors({ origin: process.env.ALLOWED_ORIGIN || '*' }));
 
 // Body parser with size limit
 app.use(express.json({ limit: '10kb' }));
@@ -40,4 +44,8 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
+
+module.exports = app;
