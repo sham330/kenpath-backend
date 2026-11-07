@@ -256,3 +256,89 @@ Tests use Jest + Supertest with mocked Prisma and Redis — no real database con
 | `npm run db:migrate` | Run Prisma migrations |
 | `npm run db:generate` | Regenerate Prisma client |
 | `npm run db:seed` | Seed the database |
+
+---
+
+## Future Improvements
+
+### Role-Based Access Control (RBAC)
+
+Currently all users have the same access. A role system would allow different experiences per user type:
+
+| Role | Access |
+|------|--------|
+| `PATIENT` | Log own readings, view own reports |
+| `NURSE` | View and log readings on behalf of assigned patients |
+| `DOCTOR` | View all assigned patients, add notes, review progress |
+| `ADMIN` | Full access, manage users and assignments |
+
+This would require a `role` field on the `User` model and a role-check middleware that sits after `authenticate`:
+
+```js
+// middlewares/authorize.middleware.js
+const authorize = (...roles) => (req, res, next) => {
+  if (!roles.includes(req.user.role))
+    return res.status(403).json({ error: 'Forbidden' });
+  next();
+};
+```
+
+---
+
+### Patient Monitoring
+
+Doctors and nurses need to monitor patients over time. This would involve:
+
+- A `PatientProfile` model linked to a user with fields like `dateOfBirth`, `diabetesType`, `targetRange` (min/max glucose)
+- A `DoctorPatient` join table to assign patients to doctors/nurses
+- New endpoints like `GET /api/patients/:id/reports` accessible only to assigned medical staff
+- Alerts or flags on readings that fall outside the patient's target range
+
+---
+
+### Food & Medication Logging
+
+Glucose readings are more meaningful when paired with what the patient ate or took. A `LogEntry` model could be added alongside each reading:
+
+```prisma
+model LogEntry {
+  id          String   @id @default(uuid())
+  userId      String
+  logDate     DateTime @db.Date
+  timeSlot    GlucoseSlot
+  meals       String?  // e.g. "Rice, grilled chicken, salad"
+  medications String?  // e.g. "Metformin 500mg"
+  notes       String?  // e.g. "Felt dizzy after lunch"
+  createdAt   DateTime @default(now())
+}
+```
+
+This would allow the daily report to include what the patient ate and took alongside each glucose reading, giving doctors a fuller picture.
+
+---
+
+### Patient Notes & Mood Tracking
+
+Patients could attach a short note and how they felt to each reading:
+
+```json
+{
+  "readingDate": "2026-10-15",
+  "timeSlot": "AFTER_LUNCH",
+  "value": 168,
+  "note": "Had a large meal, felt sluggish",
+  "feeling": "TIRED"
+}
+```
+
+Possible `feeling` values: `NORMAL`, `TIRED`, `DIZZY`, `HEADACHE`, `NAUSEOUS`
+
+This helps doctors spot patterns between how a patient feels and their glucose levels.
+
+---
+
+### Notifications & Alerts
+
+- Notify a doctor when a patient logs a critically high (>300) or low (<60) reading
+- Remind patients to log their readings if a slot is missed by end of day
+- Weekly summary email to the assigned doctor
